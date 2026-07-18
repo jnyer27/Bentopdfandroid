@@ -11,6 +11,11 @@ import type { DataflowEngineScheme } from 'rete-engine';
 import { LitElement, html } from 'lit';
 import type { BaseWorkflowNode } from './nodes/base-node';
 import phosphorCSS from '@phosphor-icons/web/regular?inline';
+import { installTapConnect } from './touch-connect.ts';
+
+// Coarse pointer = touch device: enlarge socket touch targets
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+const SOCKET_PAD = IS_TOUCH ? 12 : 0;
 
 // Shared stylesheet for Phosphor icons (font-face already loaded globally, strip it)
 const phosphorSheet = new CSSStyleSheet();
@@ -79,13 +84,16 @@ class WorkflowNodeElement extends LitElement {
         ${inputs.length > 0
           ? html`
               <div
-                style="display: flex; justify-content: center; gap: 8px; position: relative; z-index: 1; margin-bottom: -7px;"
+                style="display: flex; justify-content: center; gap: 8px; position: relative; z-index: 1; margin-bottom: ${-7 - SOCKET_PAD}px;"
               >
                 ${inputs.map(([key, input]) =>
                   input
                     ? html`
                         <div
-                          style="display: flex; align-items: center; justify-content: center;"
+                          data-wf-socket="input"
+                          data-wf-socket-key=${key}
+                          data-wf-socket-node=${node.id}
+                          style="display: flex; align-items: center; justify-content: center; padding: ${SOCKET_PAD}px; touch-action: none;"
                         >
                           <rete-ref
                             .data=${{
@@ -183,13 +191,16 @@ class WorkflowNodeElement extends LitElement {
         ${outputs.length > 0
           ? html`
               <div
-                style="display: flex; justify-content: center; gap: 8px; position: relative; z-index: 1; margin-top: -7px;"
+                style="display: flex; justify-content: center; gap: 8px; position: relative; z-index: 1; margin-top: ${-7 - SOCKET_PAD}px;"
               >
                 ${outputs.map(([key, output]) =>
                   output
                     ? html`
                         <div
-                          style="display: flex; align-items: center; justify-content: center;"
+                          data-wf-socket="output"
+                          data-wf-socket-key=${key}
+                          data-wf-socket-node=${node.id}
+                          style="display: flex; align-items: center; justify-content: center; padding: ${SOCKET_PAD}px; touch-action: none;"
                         >
                           <rete-ref
                             .data=${{
@@ -289,7 +300,7 @@ export async function createWorkflowEditor(
           return () => {
             return html`<div
               style="
-            width: 14px; height: 14px; border-radius: 50%;
+            width: ${IS_TOUCH ? 22 : 14}px; height: ${IS_TOUCH ? 22 : 14}px; border-radius: 50%;
             background: #6366f1; border: 2px solid #1f2937;
             box-shadow: 0 0 0 1px #6366f1; cursor: crosshair;
           "
@@ -384,6 +395,8 @@ export async function createWorkflowEditor(
     target.style.background = 'transparent';
   };
 
+  const removeTapConnect = installTapConnect(editor, container);
+
   container.addEventListener('pointerdown', onPointerDown, true);
   container.addEventListener('mouseenter', onMouseEnter, true);
   container.addEventListener('mouseleave', onMouseLeave, true);
@@ -398,6 +411,7 @@ export async function createWorkflowEditor(
         clearTimeout(phosphorTimer);
         phosphorTimer = null;
       }
+      removeTapConnect();
       container.removeEventListener('pointerdown', onPointerDown, true);
       container.removeEventListener('mouseenter', onMouseEnter, true);
       container.removeEventListener('mouseleave', onMouseLeave, true);
