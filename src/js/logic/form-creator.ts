@@ -47,6 +47,43 @@ import { loadPdfDocument } from '../utils/load-pdf-document.js';
 // Touch devices get larger resize handles and scroll suppression during gestures
 const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
+// --- Zoom / fit-to-window ---
+let zoomLevel = 1;
+let userZoomed = false;
+let baseCanvasWidth = 0;
+let baseCanvasHeight = 0;
+
+function applyZoom(): void {
+  if (!baseCanvasWidth) return;
+  const wrapper = document.getElementById('pdfCanvasWrapper');
+  canvas.style.transform = `scale(${zoomLevel})`;
+  canvas.style.transformOrigin = 'top left';
+  if (wrapper) {
+    wrapper.style.width = `${baseCanvasWidth * zoomLevel}px`;
+    wrapper.style.height = `${baseCanvasHeight * zoomLevel}px`;
+    wrapper.style.overflow = 'hidden';
+  }
+  const indicator = document.getElementById('zoomIndicator');
+  if (indicator) indicator.textContent = `${Math.round(zoomLevel * 100)}%`;
+}
+
+function setZoom(z: number, manual = true): void {
+  zoomLevel = Math.min(3, Math.max(0.25, z));
+  if (manual) userZoomed = true;
+  applyZoom();
+}
+
+function fitToWindow(manual = true): void {
+  if (!baseCanvasWidth) return;
+  const scroller = document
+    .getElementById('pdfCanvasWrapper')
+    ?.closest('.overflow-auto') as HTMLElement | null;
+  if (!scroller) return;
+  const available = scroller.clientWidth - 16;
+  if (available <= 0) return;
+  setZoom(available / baseCanvasWidth, manual);
+}
+
 let fields: FormField[] = [];
 let selectedField: FormField | null = null;
 let fieldCounter = 0;
@@ -346,8 +383,8 @@ toolItems.forEach((item) => {
       touch.clientY >= canvasRect.top &&
       touch.clientY <= canvasRect.bottom
     ) {
-      const x = touch.clientX - canvasRect.left - 75;
-      const y = touch.clientY - canvasRect.top - 15;
+      const x = (touch.clientX - canvasRect.left) / zoomLevel - 75;
+      const y = (touch.clientY - canvasRect.top) / zoomLevel - 15;
       const type = ((item as HTMLElement).dataset.type ||
         'text') as FormCreatorFieldType;
       createField(type, x, y);
@@ -367,8 +404,8 @@ canvas.addEventListener('drop', (e) => {
   e.preventDefault();
   if (!gridAlwaysVisible) removeGrid();
   const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left - 75;
-  const y = e.clientY - rect.top - 15;
+  const x = (e.clientX - rect.left) / zoomLevel - 75;
+  const y = (e.clientY - rect.top) / zoomLevel - 15;
   const type = (e.dataTransfer?.getData('text/plain') ||
     'text') as FormCreatorFieldType;
   createField(type, x, y);
@@ -377,8 +414,8 @@ canvas.addEventListener('drop', (e) => {
 canvas.addEventListener('click', (e) => {
   if (selectedToolType) {
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left - 75;
-    const y = e.clientY - rect.top - 15;
+    const x = (e.clientX - rect.left) / zoomLevel - 75;
+    const y = (e.clientY - rect.top) / zoomLevel - 15;
     createField(selectedToolType as FormCreatorFieldType, x, y);
 
     toolItems.forEach((item) =>
@@ -783,8 +820,8 @@ function renderField(field: FormField): void {
     }
     draggedElement = fieldWrapper;
     const rect = canvas.getBoundingClientRect();
-    offsetX = e.clientX - rect.left - field.x;
-    offsetY = e.clientY - rect.top - field.y;
+    offsetX = (e.clientX - rect.left) / zoomLevel - field.x;
+    offsetY = (e.clientY - rect.top) / zoomLevel - field.y;
     selectField(field);
     if (gridEnabled) renderGrid();
     e.preventDefault();
@@ -799,8 +836,8 @@ function renderField(field: FormField): void {
       }
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
-      offsetX = touch.clientX - rect.left - field.x;
-      offsetY = touch.clientY - rect.top - field.y;
+      offsetX = (touch.clientX - rect.left) / zoomLevel - field.x;
+      offsetY = (touch.clientY - rect.top) / zoomLevel - field.y;
       selectField(field);
     },
     { passive: true }
@@ -810,11 +847,17 @@ function renderField(field: FormField): void {
     e.preventDefault();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
-    let newX = touch.clientX - rect.left - offsetX;
-    let newY = touch.clientY - rect.top - offsetY;
+    let newX = (touch.clientX - rect.left) / zoomLevel - offsetX;
+    let newY = (touch.clientY - rect.top) / zoomLevel - offsetY;
 
-    newX = Math.max(0, Math.min(newX, rect.width - fieldWrapper.offsetWidth));
-    newY = Math.max(0, Math.min(newY, rect.height - fieldWrapper.offsetHeight));
+    newX = Math.max(
+      0,
+      Math.min(newX, rect.width / zoomLevel - fieldWrapper.offsetWidth)
+    );
+    newY = Math.max(
+      0,
+      Math.min(newY, rect.height / zoomLevel - fieldWrapper.offsetHeight)
+    );
 
     fieldWrapper.style.left = newX + 'px';
     fieldWrapper.style.top = newY + 'px';
@@ -938,13 +981,16 @@ function applyResizeWithConstraints(
 document.addEventListener('mousemove', (e) => {
   if (draggedElement && !resizing) {
     const rect = canvas.getBoundingClientRect();
-    let newX = e.clientX - rect.left - offsetX;
-    let newY = e.clientY - rect.top - offsetY;
+    let newX = (e.clientX - rect.left) / zoomLevel - offsetX;
+    let newY = (e.clientY - rect.top) / zoomLevel - offsetY;
 
-    newX = Math.max(0, Math.min(newX, rect.width - draggedElement.offsetWidth));
+    newX = Math.max(
+      0,
+      Math.min(newX, rect.width / zoomLevel - draggedElement.offsetWidth)
+    );
     newY = Math.max(
       0,
-      Math.min(newY, rect.height - draggedElement.offsetHeight)
+      Math.min(newY, rect.height / zoomLevel - draggedElement.offsetHeight)
     );
 
     draggedElement.style.left = newX + 'px';
@@ -956,8 +1002,8 @@ document.addEventListener('mousemove', (e) => {
       field.y = newY;
     }
   } else if (resizing && resizeField) {
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+    const dx = (e.clientX - startX) / zoomLevel;
+    const dy = (e.clientY - startY) / zoomLevel;
     const fieldWrapper = document.getElementById(resizeField.id);
 
     applyResizeWithConstraints(resizeField, resizePos!, dx, dy);
@@ -997,8 +1043,8 @@ document.addEventListener(
     const touch = e.touches[0];
     if (resizing && resizeField) {
       e.preventDefault();
-      const dx = touch.clientX - startX;
-      const dy = touch.clientY - startY;
+      const dx = (touch.clientX - startX) / zoomLevel;
+      const dy = (touch.clientY - startY) / zoomLevel;
       const fieldWrapper = document.getElementById(resizeField.id);
 
       applyResizeWithConstraints(resizeField, resizePos!, dx, dy);
@@ -2851,6 +2897,22 @@ async function renderCanvas(): Promise<void> {
   canvas.style.width = `${canvasWidth}px`;
   canvas.style.height = `${canvasHeight}px`;
 
+  baseCanvasWidth = canvasWidth;
+  baseCanvasHeight = canvasHeight;
+  if (!userZoomed) {
+    // Auto fit-to-window when the page would overflow (small screens)
+    const scroller = document
+      .getElementById('pdfCanvasWrapper')
+      ?.closest('.overflow-auto') as HTMLElement | null;
+    if (scroller && canvasWidth > scroller.clientWidth - 16) {
+      fitToWindow(false);
+    } else {
+      applyZoom();
+    }
+  } else {
+    applyZoom();
+  }
+
   canvas.innerHTML = '';
 
   if (uploadedPdfjsDoc) {
@@ -3160,3 +3222,12 @@ if (errorModal) {
 }
 
 initializeGlobalShortcuts();
+
+
+// --- Zoom control wiring ---
+const zoomInBtn = document.getElementById('zoomInBtn');
+const zoomOutBtn = document.getElementById('zoomOutBtn');
+const zoomFitBtn = document.getElementById('zoomFitBtn');
+zoomInBtn?.addEventListener('click', () => setZoom(zoomLevel + 0.25));
+zoomOutBtn?.addEventListener('click', () => setZoom(zoomLevel - 0.25));
+zoomFitBtn?.addEventListener('click', () => fitToWindow());
