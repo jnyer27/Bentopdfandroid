@@ -45,6 +45,8 @@
     "android:open": "npx cap open android"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
     "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.1",
     "@types/blob-stream": "^0.1.33",
@@ -72,11 +74,11 @@
     "vite-plugin-node-polyfills": "^0.26.0",
     "vitepress": "^1.6.4",
     "vitest": "^4.0.18",
-    "vue": "^3.5.29",
-    "@capacitor/cli": "^8.4.2",
-    "@capacitor/android": "^8.4.2"
+    "vue": "^3.5.29"
   },
   "dependencies": {
+    "@capacitor/browser": "^8.0.0",
+    "@capacitor/core": "^8.4.2",
     "@fontsource/cedarville-cursive": "^5.2.7",
     "@fontsource/dancing-script": "^5.2.8",
     "@fontsource/dm-sans": "^5.2.8",
@@ -148,8 +150,7 @@
     "vite-plugin-static-copy": "^3.2.0",
     "wasm-vips": "^0.0.17",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zgapdfsigner": "^2.7.5",
-    "@capacitor/core": "^8.4.2"
+    "zgapdfsigner": "^2.7.5"
   },
   "lint-staged": {
     "*.{js,ts,mjs,cjs}": [

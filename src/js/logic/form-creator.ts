@@ -44,6 +44,9 @@ import {
 import { extractExistingFields as extractExistingPdfFields } from './form-creator-extraction.js';
 import { loadPdfDocument } from '../utils/load-pdf-document.js';
 
+// Touch devices get larger resize handles and scroll suppression during gestures
+const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+
 let fields: FormField[] = [];
 let selectedField: FormField | null = null;
 let fieldCounter = 0;
@@ -824,7 +827,7 @@ function renderField(field: FormField): void {
   const handles = ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'];
   handles.forEach((pos) => {
     const handle = document.createElement('div');
-    handle.className = `absolute w-2.5 h-2.5 bg-white border border-indigo-600 z-10 cursor-${pos}-resize resize-handle hidden`; // Added hidden class
+    handle.className = `absolute ${IS_TOUCH ? 'w-6 h-6 rounded-full' : 'w-2.5 h-2.5'} bg-white border border-indigo-600 z-10 cursor-${pos}-resize resize-handle hidden`; // Added hidden class
     const positions: Record<string, string> = {
       nw: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2',
       ne: 'top-0 right-0 translate-x-1/2 -translate-y-1/2',
@@ -993,6 +996,7 @@ document.addEventListener(
   (e) => {
     const touch = e.touches[0];
     if (resizing && resizeField) {
+      e.preventDefault();
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
       const fieldWrapper = document.getElementById(resizeField.id);
