@@ -1,3 +1,4 @@
+import { nativeDownload } from './native-download.ts';
 import createModule from '@neslinesli93/qpdf-wasm';
 import type { QpdfInstanceExtended } from '@/types';
 import { showLoader, hideLoader, showAlert } from '../ui.js';
@@ -72,6 +73,7 @@ export const formatBytes = (bytes: number, decimals = 1) => {
 };
 
 export const downloadFile = (blob: Blob, filename: string): void => {
+  if (nativeDownload(blob, filename)) return;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
