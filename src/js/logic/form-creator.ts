@@ -44,8 +44,11 @@ import {
 import { extractExistingFields as extractExistingPdfFields } from './form-creator-extraction.js';
 import { loadPdfDocument } from '../utils/load-pdf-document.js';
 
-// Touch devices get larger resize handles and scroll suppression during gestures
-const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
+import {
+  IS_COARSE_POINTER as IS_TOUCH,
+  RESIZE_HANDLE_SIZE,
+  CORNER_HANDLES_ONLY,
+} from '../utils/touch-targets.ts';
 
 // --- Zoom / fit-to-window ---
 let zoomLevel = 1;
@@ -65,6 +68,11 @@ function applyZoom(): void {
   }
   const indicator = document.getElementById('zoomIndicator');
   if (indicator) indicator.textContent = `${Math.round(zoomLevel * 100)}%`;
+  // Resize anchors keep a constant on-screen size regardless of zoom
+  canvas.style.setProperty(
+    '--fc-handle',
+    `${RESIZE_HANDLE_SIZE / zoomLevel}px`
+  );
 }
 
 function setZoom(z: number, manual = true): void {
@@ -115,6 +123,7 @@ let startTop = 0;
 let selectedToolType: string | null = null;
 
 const canvas = document.getElementById('pdfCanvas') as HTMLDivElement;
+canvas?.style.setProperty('--fc-handle', `${RESIZE_HANDLE_SIZE}px`);
 const propertiesPanel = document.getElementById(
   'propertiesPanel'
 ) as HTMLDivElement;
@@ -844,6 +853,10 @@ function renderField(field: FormField): void {
   );
 
   fieldWrapper.addEventListener('touchmove', (e) => {
+    // If a resize is in progress (touch started on an anchor), don't also
+    // move the box — the document-level handler owns this gesture.
+    if (resizing) return;
+    if ((e.target as HTMLElement).classList.contains('resize-handle')) return;
     e.preventDefault();
     const touch = e.touches[0];
     const rect = canvas.getBoundingClientRect();
@@ -867,10 +880,14 @@ function renderField(field: FormField): void {
   });
 
   // Add resize handles to the container - hidden by default
-  const handles = ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'];
+  const handles = CORNER_HANDLES_ONLY
+    ? ['nw', 'ne', 'sw', 'se']
+    : ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'];
   handles.forEach((pos) => {
     const handle = document.createElement('div');
-    handle.className = `absolute ${IS_TOUCH ? 'w-6 h-6 rounded-full' : 'w-2.5 h-2.5'} bg-white border border-indigo-600 z-10 cursor-${pos}-resize resize-handle hidden`; // Added hidden class
+    handle.className = `absolute ${IS_TOUCH ? 'rounded-full' : ''} bg-white border border-indigo-600 z-10 cursor-${pos}-resize resize-handle hidden`; // Added hidden class
+    handle.style.width = 'var(--fc-handle)';
+    handle.style.height = 'var(--fc-handle)';
     const positions: Record<string, string> = {
       nw: 'top-0 left-0 -translate-x-1/2 -translate-y-1/2',
       ne: 'top-0 right-0 translate-x-1/2 -translate-y-1/2',

@@ -12,10 +12,9 @@ import { LitElement, html } from 'lit';
 import type { BaseWorkflowNode } from './nodes/base-node';
 import phosphorCSS from '@phosphor-icons/web/regular?inline';
 import { installTapConnect } from './touch-connect.ts';
+import { SOCKET_SIZE, SOCKET_HIT_PAD } from '../utils/touch-targets.ts';
 
-// Coarse pointer = touch device: enlarge socket touch targets
-const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
-const SOCKET_PAD = IS_TOUCH ? 12 : 0;
+const SOCKET_PAD = SOCKET_HIT_PAD;
 
 // Shared stylesheet for Phosphor icons (font-face already loaded globally, strip it)
 const phosphorSheet = new CSSStyleSheet();
@@ -300,7 +299,7 @@ export async function createWorkflowEditor(
           return () => {
             return html`<div
               style="
-            width: ${IS_TOUCH ? 22 : 14}px; height: ${IS_TOUCH ? 22 : 14}px; border-radius: 50%;
+            width: ${SOCKET_SIZE}px; height: ${SOCKET_SIZE}px; border-radius: 50%;
             background: #6366f1; border: 2px solid #1f2937;
             box-shadow: 0 0 0 1px #6366f1; cursor: crosshair;
           "
