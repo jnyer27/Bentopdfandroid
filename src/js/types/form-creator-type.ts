@@ -9,6 +9,18 @@ export const FORM_CREATOR_FIELD_TYPES = [
   'date',
   'image',
   'barcode',
+  'label',
+  'rect',
+  'ellipse',
+  'line',
+] as const;
+
+/** Static content elements drawn onto the PDF (not AcroForm fields). */
+export const CONTENT_ELEMENT_TYPES = [
+  'label',
+  'rect',
+  'ellipse',
+  'line',
 ] as const;
 
 export type FormCreatorFieldType = (typeof FORM_CREATOR_FIELD_TYPES)[number];
@@ -84,6 +96,15 @@ export interface FormField {
   transparentBackground?: boolean;
   barcodeFormat?: string;
   barcodeValue?: string;
+  // Static content element styling
+  fontFamily?: 'Helvetica' | 'TimesRoman' | 'Courier';
+  bold?: boolean;
+  italic?: boolean;
+  fillColor?: string;
+  fillTransparent?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
+  lineDir?: 'horizontal' | 'vertical' | 'diag-down' | 'diag-up';
 }
 
 export interface PageData {

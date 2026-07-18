@@ -441,6 +441,21 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
+function isContentElement(field: { type: string }): boolean {
+  return (
+    field.type === 'label' ||
+    field.type === 'rect' ||
+    field.type === 'ellipse' ||
+    field.type === 'line'
+  );
+}
+
+const CSS_FONT_MAP: Record<string, string> = {
+  Helvetica: 'Helvetica, Arial, sans-serif',
+  TimesRoman: '"Times New Roman", Times, serif',
+  Courier: '"Courier New", Courier, monospace',
+};
+
 function createField(type: FormField['type'], x: number, y: number): void {
   fieldCounter++;
   const field: FormField = {
@@ -453,13 +468,21 @@ function createField(type: FormField['type'], x: number, y: number): void {
         ? 30
         : type === 'barcode'
           ? 150
-          : 150,
+          : type === 'rect' || type === 'ellipse'
+            ? 120
+            : type === 'label' || type === 'line'
+              ? 200
+              : 150,
     height:
       type === 'checkbox' || type === 'radio'
         ? 30
         : type === 'barcode'
           ? 150
-          : 30,
+          : type === 'rect' || type === 'ellipse'
+            ? 80
+            : type === 'line'
+              ? 24
+              : 30,
     name: `${type.charAt(0).toUpperCase() + type.slice(1)}_${fieldCounter}`,
     defaultValue: '',
     fontSize: 12,
@@ -494,7 +517,22 @@ function createField(type: FormField['type'], x: number, y: number): void {
     transparentBackground: false,
     barcodeFormat: type === 'barcode' ? 'qrcode' : undefined,
     barcodeValue: type === 'barcode' ? 'https://example.com' : undefined,
+    fontFamily: type === 'label' ? 'Helvetica' : undefined,
+    bold: type === 'label' ? false : undefined,
+    italic: type === 'label' ? false : undefined,
+    fillColor:
+      type === 'rect' || type === 'ellipse' ? '#ffffff' : undefined,
+    fillTransparent:
+      type === 'rect' || type === 'ellipse' ? true : undefined,
+    strokeColor: isContentElement({ type }) ? '#000000' : undefined,
+    strokeWidth:
+      type === 'line' ? 2 : isContentElement({ type }) ? 1 : undefined,
+    lineDir: type === 'line' ? 'horizontal' : undefined,
   };
+  if (type === 'label') {
+    field.defaultValue = 'Text';
+    field.fontSize = 14;
+  }
 
   fields.push(field);
   renderField(field);
@@ -643,7 +681,41 @@ function renderField(field: FormField): void {
   contentEl.className =
     'field-content w-full h-full flex items-center justify-center overflow-hidden';
 
-  if (field.type === 'text') {
+  if (field.type === 'label') {
+    contentEl.className = 'w-full h-full overflow-hidden';
+    contentEl.style.fontSize = field.fontSize + 'px';
+    contentEl.style.fontFamily =
+      CSS_FONT_MAP[field.fontFamily || 'Helvetica'];
+    contentEl.style.fontWeight = field.bold ? 'bold' : 'normal';
+    contentEl.style.fontStyle = field.italic ? 'italic' : 'normal';
+    contentEl.style.color = field.textColor;
+    contentEl.style.textAlign = field.alignment;
+    contentEl.style.whiteSpace = 'pre-wrap';
+    contentEl.style.lineHeight = '1.2';
+    contentEl.textContent = field.defaultValue;
+  } else if (field.type === 'rect' || field.type === 'ellipse') {
+    contentEl.className = 'w-full h-full';
+    const shape = document.createElement('div');
+    shape.style.width = '100%';
+    shape.style.height = '100%';
+    shape.style.boxSizing = 'border-box';
+    shape.style.border = `${field.strokeWidth || 1}px solid ${field.strokeColor || '#000000'}`;
+    shape.style.background = field.fillTransparent
+      ? 'transparent'
+      : field.fillColor || '#ffffff';
+    if (field.type === 'ellipse') shape.style.borderRadius = '50%';
+    contentEl.appendChild(shape);
+  } else if (field.type === 'line') {
+    contentEl.className = 'w-full h-full';
+    const dir = field.lineDir || 'horizontal';
+    const coords: Record<string, string> = {
+      horizontal: 'x1="0" y1="50" x2="100" y2="50"',
+      vertical: 'x1="50" y1="0" x2="50" y2="100"',
+      'diag-down': 'x1="0" y1="0" x2="100" y2="100"',
+      'diag-up': 'x1="0" y1="100" x2="100" y2="0"',
+    };
+    contentEl.innerHTML = `<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><line ${coords[dir]} stroke="${field.strokeColor || '#000000'}" stroke-width="${field.strokeWidth || 2}" vector-effect="non-scaling-stroke"/></svg>`;
+  } else if (field.type === 'text') {
     contentEl.className =
       'field-text w-full h-full flex items-center px-2 text-sm overflow-hidden';
     contentEl.style.fontSize = field.fontSize + 'px';
@@ -1154,7 +1226,167 @@ function deselectAll(): void {
 }
 
 // Show properties panel
+function refreshContentElement(field: FormField): void {
+  renderField(field);
+  const wrapper = document.getElementById(field.id);
+  if (!wrapper) return;
+  const container = wrapper.querySelector('.field-container') as HTMLElement;
+  if (container) applyFieldContainerState(container, field, true);
+  wrapper
+    .querySelectorAll('.resize-handle')
+    .forEach((h) => h.classList.remove('hidden'));
+}
+
+function showContentProperties(field: FormField): void {
+  const colorRow = (id: string, lbl: string, val: string) => `
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">${lbl}</label>
+        <input type="color" id="${id}" value="${val}">
+      </div>`;
+  let body = '';
+  if (field.type === 'label') {
+    body = `
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Text</label>
+        <textarea id="propContentText" rows="3" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500">${escapeHtml(field.defaultValue)}</textarea>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Font</label>
+        <select id="propFontFamily" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+          <option value="Helvetica" ${field.fontFamily === 'Helvetica' ? 'selected' : ''}>Helvetica</option>
+          <option value="TimesRoman" ${field.fontFamily === 'TimesRoman' ? 'selected' : ''}>Times Roman</option>
+          <option value="Courier" ${field.fontFamily === 'Courier' ? 'selected' : ''}>Courier</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Font Size</label>
+        <input type="number" id="propFontSize" value="${field.fontSize}" min="6" max="144" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+      </div>
+      <div class="flex gap-2">
+        <button id="propBoldBtn" class="flex-1 py-1 rounded text-sm font-bold border border-gray-500 ${field.bold ? 'bg-indigo-600 text-white' : 'bg-gray-600 text-gray-300'}">B</button>
+        <button id="propItalicBtn" class="flex-1 py-1 rounded text-sm italic border border-gray-500 ${field.italic ? 'bg-indigo-600 text-white' : 'bg-gray-600 text-gray-300'}">I</button>
+      </div>
+      ${colorRow('propTextColor', 'Text Color', field.textColor)}
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Alignment</label>
+        <select id="propAlignment" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+          <option value="left" ${field.alignment === 'left' ? 'selected' : ''}>Left</option>
+          <option value="center" ${field.alignment === 'center' ? 'selected' : ''}>Center</option>
+          <option value="right" ${field.alignment === 'right' ? 'selected' : ''}>Right</option>
+        </select>
+      </div>`;
+  } else if (field.type === 'rect' || field.type === 'ellipse') {
+    body = `
+      ${colorRow('propStrokeColor', 'Border Color', field.strokeColor || '#000000')}
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Border Width</label>
+        <input type="number" id="propStrokeWidth" value="${field.strokeWidth || 1}" min="0" max="20" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+      </div>
+      ${colorRow('propFillColor', 'Fill Color', field.fillColor || '#ffffff')}
+      <div class="flex items-center">
+        <input type="checkbox" id="propFillTransparent" ${field.fillTransparent ? 'checked' : ''} class="mr-2">
+        <label for="propFillTransparent" class="text-xs font-semibold text-gray-300">No Fill (transparent)</label>
+      </div>`;
+  } else if (field.type === 'line') {
+    body = `
+      ${colorRow('propStrokeColor', 'Line Color', field.strokeColor || '#000000')}
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Thickness</label>
+        <input type="number" id="propStrokeWidth" value="${field.strokeWidth || 2}" min="1" max="20" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-300 mb-1">Direction</label>
+        <select id="propLineDir" class="w-full bg-gray-600 border border-gray-500 text-white rounded px-2 py-1 text-sm">
+          <option value="horizontal" ${field.lineDir === 'horizontal' ? 'selected' : ''}>Horizontal</option>
+          <option value="vertical" ${field.lineDir === 'vertical' ? 'selected' : ''}>Vertical</option>
+          <option value="diag-down" ${field.lineDir === 'diag-down' ? 'selected' : ''}>Diagonal ↘</option>
+          <option value="diag-up" ${field.lineDir === 'diag-up' ? 'selected' : ''}>Diagonal ↗</option>
+        </select>
+      </div>`;
+  }
+
+  const typeName =
+    field.type === 'label'
+      ? 'Text'
+      : field.type.charAt(0).toUpperCase() + field.type.slice(1);
+  const html = `
+    <div class="space-y-3">
+      <div class="text-sm font-bold text-white border-b border-gray-600 pb-2">${typeName} Properties</div>
+      ${body}
+      <button id="deleteBtn" class="w-full bg-red-600 text-white py-2 rounded hover:bg-red-700 transition text-sm font-semibold">
+        Delete Element
+      </button>
+    </div>`;
+  propertiesPanel.innerHTML = DOMPurify.sanitize(html);
+
+  const on = (
+    id: string,
+    ev: string,
+    fn: (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => void
+  ) => {
+    const el = document.getElementById(id) as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement
+      | null;
+    el?.addEventListener(ev, () => {
+      fn(el);
+      refreshContentElement(field);
+    });
+  };
+
+  on('propContentText', 'input', (el) => (field.defaultValue = el.value));
+  on(
+    'propFontFamily',
+    'change',
+    (el) => (field.fontFamily = el.value as FormField['fontFamily'])
+  );
+  on(
+    'propFontSize',
+    'input',
+    (el) => (field.fontSize = parseInt(el.value) || 12)
+  );
+  on('propTextColor', 'input', (el) => (field.textColor = el.value));
+  on(
+    'propAlignment',
+    'change',
+    (el) => (field.alignment = el.value as FormField['alignment'])
+  );
+  on('propStrokeColor', 'input', (el) => (field.strokeColor = el.value));
+  on(
+    'propStrokeWidth',
+    'input',
+    (el) => (field.strokeWidth = parseInt(el.value) || 1)
+  );
+  on('propFillColor', 'input', (el) => {
+    field.fillColor = el.value;
+    field.fillTransparent = false;
+    const t = document.getElementById(
+      'propFillTransparent'
+    ) as HTMLInputElement;
+    if (t) t.checked = false;
+  });
+  on(
+    'propFillTransparent',
+    'change',
+    (el) => (field.fillTransparent = (el as HTMLInputElement).checked)
+  );
+  on(
+    'propLineDir',
+    'change',
+    (el) => (field.lineDir = el.value as FormField['lineDir'])
+  );
+
+  document.getElementById('deleteBtn')?.addEventListener('click', () => {
+    deleteField(field);
+  });
+}
+
 function showProperties(field: FormField): void {
+  if (isContentElement(field)) {
+    showContentProperties(field);
+    return;
+  }
   let specificProps = '';
 
   if (field.type === 'text') {
@@ -2274,6 +2506,33 @@ downloadBtn.addEventListener('click', async () => {
       ReturnType<typeof form.createRadioGroup>
     >();
 
+    const embeddedFonts = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedFont>>>();
+    const getContentFont = async (field: FormField) => {
+      const fam = field.fontFamily || 'Helvetica';
+      const key = `${fam}|${field.bold ? 'b' : ''}${field.italic ? 'i' : ''}`;
+      const cached = embeddedFonts.get(key);
+      if (cached) return cached;
+      const table: Record<string, StandardFonts> = {
+        'Helvetica|': StandardFonts.Helvetica,
+        'Helvetica|b': StandardFonts.HelveticaBold,
+        'Helvetica|i': StandardFonts.HelveticaOblique,
+        'Helvetica|bi': StandardFonts.HelveticaBoldOblique,
+        'TimesRoman|': StandardFonts.TimesRoman,
+        'TimesRoman|b': StandardFonts.TimesRomanBold,
+        'TimesRoman|i': StandardFonts.TimesRomanItalic,
+        'TimesRoman|bi': StandardFonts.TimesRomanBoldItalic,
+        'Courier|': StandardFonts.Courier,
+        'Courier|b': StandardFonts.CourierBold,
+        'Courier|i': StandardFonts.CourierOblique,
+        'Courier|bi': StandardFonts.CourierBoldOblique,
+      };
+      const font = await pdfDoc.embedFont(
+        table[key] || StandardFonts.Helvetica
+      );
+      embeddedFonts.set(key, font);
+      return font;
+    };
+
     for (const field of fields) {
       const pageData = pages[field.pageIndex];
       if (!pageData) continue;
@@ -2286,6 +2545,96 @@ downloadBtn.addEventListener('click', async () => {
         pageHeight - field.y / currentScale - field.height / currentScale;
       const width = field.width / currentScale;
       const height = field.height / currentScale;
+
+      if (isContentElement(field)) {
+        const stroke = hexToRgb(field.strokeColor || '#000000');
+        const strokeColor = rgb(stroke.r, stroke.g, stroke.b);
+        const strokeWidth = field.strokeWidth ?? 1;
+
+        if (field.type === 'label') {
+          const font = await getContentFont(field);
+          const textRgb = hexToRgb(field.textColor);
+          const size = field.fontSize;
+          const lineHeight = size * 1.2;
+          const lines = (field.defaultValue || '').split('\n');
+          let lineY = y + height - size;
+          for (const line of lines) {
+            let lineX = x;
+            if (field.alignment !== 'left') {
+              const w = font.widthOfTextAtSize(line, size);
+              lineX =
+                field.alignment === 'center'
+                  ? x + (width - w) / 2
+                  : x + width - w;
+            }
+            pdfPage.drawText(line, {
+              x: lineX,
+              y: lineY,
+              size,
+              font,
+              color: rgb(textRgb.r, textRgb.g, textRgb.b),
+            });
+            lineY -= lineHeight;
+          }
+        } else if (field.type === 'rect') {
+          const fill = hexToRgb(field.fillColor || '#ffffff');
+          pdfPage.drawRectangle({
+            x,
+            y,
+            width,
+            height,
+            borderColor: strokeColor,
+            borderWidth: strokeWidth,
+            color: field.fillTransparent
+              ? undefined
+              : rgb(fill.r, fill.g, fill.b),
+          });
+        } else if (field.type === 'ellipse') {
+          const fill = hexToRgb(field.fillColor || '#ffffff');
+          pdfPage.drawEllipse({
+            x: x + width / 2,
+            y: y + height / 2,
+            xScale: width / 2,
+            yScale: height / 2,
+            borderColor: strokeColor,
+            borderWidth: strokeWidth,
+            color: field.fillTransparent
+              ? undefined
+              : rgb(fill.r, fill.g, fill.b),
+          });
+        } else if (field.type === 'line') {
+          const dir = field.lineDir || 'horizontal';
+          const ends: Record<
+            string,
+            [{ x: number; y: number }, { x: number; y: number }]
+          > = {
+            horizontal: [
+              { x, y: y + height / 2 },
+              { x: x + width, y: y + height / 2 },
+            ],
+            vertical: [
+              { x: x + width / 2, y },
+              { x: x + width / 2, y: y + height },
+            ],
+            'diag-down': [
+              { x, y: y + height },
+              { x: x + width, y },
+            ],
+            'diag-up': [
+              { x, y },
+              { x: x + width, y: y + height },
+            ],
+          };
+          const [start, end] = ends[dir];
+          pdfPage.drawLine({
+            start,
+            end,
+            thickness: strokeWidth,
+            color: strokeColor,
+          });
+        }
+        continue;
+      }
 
       if (field.type === 'text') {
         const textField = form.createTextField(field.name);
