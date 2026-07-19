@@ -7,6 +7,10 @@
 
 import { WorkerBrowserConverter } from '@matbee/libreoffice-converter/browser';
 import type { InputFormat } from '@matbee/libreoffice-converter/browser';
+import {
+  officeConversionSupported,
+  showOfficeUnsupportedModal,
+} from './office-native-guard.ts';
 
 const LIBREOFFICE_LOCAL_PATH = import.meta.env.BASE_URL + 'libreoffice-wasm/';
 
@@ -33,6 +37,15 @@ export class LibreOfficeConverter {
 
   async initialize(onProgress?: ProgressCallback): Promise<void> {
     if (this.initialized) return;
+
+    if (!officeConversionSupported()) {
+      showOfficeUnsupportedModal();
+      throw new Error(
+        'Office conversion is not available in the Android app: the WebView ' +
+          'does not support SharedArrayBuffer, which LibreOffice WASM requires. ' +
+          'Use the browser version instead.'
+      );
+    }
 
     if (this.initializing) {
       while (this.initializing) {
