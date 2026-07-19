@@ -328,7 +328,7 @@ async function renderThumbnails() {
 
   createIcons({ icons });
   initializeSortable();
-  initPagePreview(grid, organizeState.pdfJsDoc);
+  initPagePreview(grid, organizeState.pdfJsDoc, { tapImageToPreview: true });
 }
 
 function initializeSortable() {
